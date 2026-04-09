@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Облако Алексея</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg: #0f1115; --card: #1a1d24; --text: #e0e0e0;
+            --accent: #58a6ff; --danger: #ff6b6b; --success: #4ade80;
+        }
+        body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; }
+        h1 { font-size: 18px; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .file-list { display: flex; flex-direction: column; gap: 10px; }
+        .file-item { background: var(--card); padding: 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+        .file-item:active { transform: scale(0.98); background: #22262e; }
+        .file-icon { font-size: 20px; margin-right: 10px; }
+        .file-info { flex: 1; }
+        .file-name { font-weight: 500; }
+        .file-meta { font-size: 12px; color: #888; margin-top: 2px; }
+        .badge { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+        .badge.new { background: var(--accent); color: #000; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        .modal.active { display: flex; }
+        .modal-header { display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; }
+        .close-btn { background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; }
+        .photo-view { flex: 1; display: flex; align-items: center; justify-content: center; background: #222; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+        .photo-view img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .metadata-panel { background: var(--card); padding: 12px; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 13px; }
+        .meta-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .meta-label { color: #888; }
+        .meta-value { color: var(--accent); }
+        .meta-value.alert { color: var(--danger); font-weight: bold; }
+        .btn { width: 100%; padding: 14px; margin-top: 12px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:disabled { background: #444; color: #888; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>📂 Облако Алексея</h1>
+    <div class="file-list" id="fileList"></div>
+
+    <div class="modal" id="photoModal">
+        <div class="modal-header">
+            <span id="modalTitle">photo_001.jpg</span>
+            <button class="close-btn" onclick="closeModal()">✕</button>
+        </div>
+        <div class="photo-view">
+            <!-- Замени src на реальное фото, когда подготовишь -->
+            <img src="https://placehold.co/600x400/1a1d24/58a6ff?text=Вид+на+горы+%7C+Отражение+кафе" alt="Evidence">
+        </div>
+        <div class="metadata-panel">
+            <div class="meta-row"><span class="meta-label">Камера:</span><span class="meta-value">iPhone 13</span></div>
+            <div class="meta-row"><span class="meta-label">Дата:</span><span class="meta-value">14 окт, 16:42</span></div>
+            <div class="meta-row"><span class="meta-label">GPS:</span><span class="meta-value alert" id="gpsCoords">55.7558° N, 37.6173° E</span></div>
+            <div class="meta-row"><span class="meta-label">Локация:</span><span class="meta-value" id="locationName">📍 Кафе "Зерно", ул. Ленина, 5</span></div>
+        </div>
+        <button class="btn btn-primary" id="sendReportBtn" onclick="sendReport()">📤 Отправить отчет боту</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); tg.ready();
+
+        const files = [
+            { id: 'photo_001', name: 'photo_001.jpg', size: '2.4 MB', type: 'image', isNew: true },
+            { id: 'doc_002', name: 'fin_report_oct.pdf', size: '1.1 MB', type: 'doc', isNew: false },
+            { id: 'chat_003', name: 'tg_backup_Dmitry.txt', size: '45 KB', type: 'text', isNew: true }
+        ];
+
+        const fileListEl = document.getElementById('fileList');
+        files.forEach(file => {
+            const div = document.createElement('div');
+            div.className = 'file-item';
+            div.innerHTML = `<span class="file-icon">${file.type === 'image' ? '🖼️' : file.type === 'doc' ? '📄' : '💬'}</span>
+                <div class="file-info"><div class="file-name">${file.name}</div><div class="file-meta">${file.size}</div></div>
+                ${file.isNew ? '<span class="badge new">NEW</span>' : '<span class="badge">OPENED</span>'}`;
+            div.onclick = () => openFile(file.id);
+            fileListEl.appendChild(div);
+        });
+
+        let currentFile = null;
+        function openFile(fileId) {
+            currentFile = fileId;
+            if (fileId === 'photo_001') {
+                document.getElementById('photoModal').classList.add('active');
+                tg.HapticFeedback.selectionChanged();
+            } else {
+                tg.showAlert('🔒 Доступ ограничен. Требуется уровень допуска 2.');
+            }
+        }
+        function closeModal() { document.getElementById('photoModal').classList.remove('active'); }
+
+        function sendReport() {
+            const btn = document.getElementById('sendReportBtn');
+            btn.disabled = true; btn.textContent = '⏳ Отправка...';
+            setTimeout(() => {
+                const report = JSON.stringify({
+                    action: 'metadata_found',
+                    file: 'photo_001.jpg',
+                    gps: '55.7558, 37.6173',
+                    location: 'Кафе "Зерно", ул. Ленина, 5',
+                    timestamp: '14 окт, 16:42'
+                });
+                tg.sendData(report);
+                btn.textContent = '✅ Отправлено';
+            }, 600);
+        }
+
+        tg.BackButton.onClick(() => { closeModal(); tg.BackButton.hide(); });
+        document.getElementById('photoModal').addEventListener('click', (e) => { if(e.target.id === 'photoModal') closeModal(); });
+    </script>
+</body>
+</html>
