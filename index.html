@@ -3,114 +3,407 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Облако Алексея</title>
+    <title>Улики: Дело №23-0825</title>
+    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Leaflet CSS (Карта) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
         :root {
-            --bg: #0f1115; --card: #1a1d24; --text: #e0e0e0;
-            --accent: #58a6ff; --danger: #ff6b6b; --success: #4ade80;
+            --bg: #09090b;
+            --card-bg: #18181b;
+            --text-main: #e4e4e7;
+            --text-muted: #71717a;
+            --accent: #3b82f6; /* Синий */
+            --danger: #ef4444; /* Красный */
+            --success: #22c55e; /* Зеленый */
+            --border: #27272a;
         }
-        body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; }
-        h1 { font-size: 18px; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px; }
-        .file-list { display: flex; flex-direction: column; gap: 10px; }
-        .file-item { background: var(--card); padding: 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
-        .file-item:active { transform: scale(0.98); background: #22262e; }
-        .file-icon { font-size: 20px; margin-right: 10px; }
-        .file-info { flex: 1; }
-        .file-name { font-weight: 500; }
-        .file-meta { font-size: 12px; color: #888; margin-top: 2px; }
-        .badge { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
-        .badge.new { background: var(--accent); color: #000; }
 
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; padding: 20px; box-sizing: border-box; }
-        .modal.active { display: flex; }
-        .modal-header { display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; }
-        .close-btn { background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; }
-        .photo-view { flex: 1; display: flex; align-items: center; justify-content: center; background: #222; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
-        .photo-view img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .metadata-panel { background: var(--card); padding: 12px; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 13px; }
-        .meta-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
-        .meta-label { color: #888; }
-        .meta-value { color: var(--accent); }
-        .meta-value.alert { color: var(--danger); font-weight: bold; }
-        .btn { width: 100%; padding: 14px; margin-top: 12px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
-        .btn-primary { background: var(--accent); color: #000; }
-        .btn-primary:disabled { background: #444; color: #888; cursor: not-allowed; }
+        body {
+            margin: 0; padding: 0;
+            background: var(--bg);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 16px;
+            padding-bottom: 80px; /* Отступ для кнопки внизу */
+        }
+
+        /* Навигация */
+        .nav {
+            display: flex;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 10px;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .nav-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+        .nav-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Контент */
+        .content { padding: 16px; display: none; }
+        .content.active { display: block; }
+
+        /* Список файлов */
+        .file-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .file-item:active { transform: scale(0.98); }
+        .file-icon {
+            width: 40px; height: 40px;
+            background: #27272a;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .file-info h3 { margin: 0; font-size: 16px; font-weight: 600; }
+        .file-info p { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); }
+        .tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+        .tag-new { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+        .tag-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+        /* Карта */
+        #map { height: 50vh; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; }
+        .map-legend { background: var(--card-bg); padding: 12px; border-radius: 12px; font-size: 14px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        /* Модальное окно (просмотр файла) */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg);
+            z-index: 100;
+            overflow-y: auto;
+            display: none;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .modal.open { display: block; }
+        .modal-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .close-btn { background: none; border: none; color: var(--text-main); font-size: 24px; cursor: pointer; }
+
+        /* Плейсхолдер для фото/документа */
+        .fake-asset {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #000;
+            margin-bottom: 20px;
+        }
+
+        /* Таблица метаданных */
+        .meta-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .meta-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+        .meta-table td:first-child { color: var(--text-muted); width: 40%; }
+        .meta-table td:last-child { font-family: monospace; color: var(--accent); }
+        .highlight { color: var(--danger) !important; font-weight: bold; }
+
+        /* Нижняя кнопка действия */
+        .action-bar {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .btn-send {
+            width: 100%;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-send:disabled { background: var(--text-muted); opacity: 0.5; }
+
     </style>
 </head>
 <body>
-    <h1>📂 Облако Алексея</h1>
-    <div class="file-list" id="fileList"></div>
 
-    <div class="modal" id="photoModal">
+    <!-- Навигация -->
+    <div class="nav">
+        <button class="nav-btn active" onclick="switchTab('files')">📁 Файлы</button>
+        <button class="nav-btn" onclick="switchTab('map')">🗺️ Карта</button>
+    </div>
+
+    <!-- Вкладка: Файлы -->
+    <div id="tab-files" class="content active">
+        <!-- Сюда JS добавит файлы -->
+    </div>
+
+    <!-- Вкладка: Карта -->
+    <div id="tab-map" class="content">
+        <div id="map"></div>
+        <div class="map-legend">
+            <div class="legend-item"><div class="dot" style="background:var(--danger)"></div> Место гибели (Скала)</div>
+            <div class="legend-item"><div class="dot" style="background:var(--accent)"></div> Кафе "Зерно" (Алиби?)</div>
+            <div class="legend-item"><div class="dot" style="background:#f59e0b"></div> Офис подозреваемого</div>
+        </div>
+        <div style="margin-top: 16px;">
+            <button class="btn-send" onclick="sendMapReport()">📤 Отправить анализ маршрута</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Просмотр файла -->
+    <div id="file-modal" class="modal">
         <div class="modal-header">
-            <span id="modalTitle">photo_001.jpg</span>
+            <h2 id="modal-title" style="margin:0; font-size:18px;">Заголовок</h2>
             <button class="close-btn" onclick="closeModal()">✕</button>
         </div>
-        <div class="photo-view">
-            <!-- Замени src на реальное фото, когда подготовишь -->
-            <img src="https://placehold.co/600x400/1a1d24/58a6ff?text=Вид+на+горы+%7C+Отражение+кафе" alt="Evidence">
+
+        <!-- Контейнер для фейкового контента -->
+        <div id="modal-content"></div>
+
+        <h3 style="font-size:16px; color:var(--text-muted); margin-bottom:10px;"> Метаданные (EXIF)</h3>
+        <table class="meta-table" id="modal-meta">
+            <!-- Таблица заполнится JS -->
+        </table>
+
+        <div class="action-bar" style="position:relative; border:none; background:transparent; padding:0; margin-top:20px;">
+            <button class="btn-send" onclick="sendFileReport()">📤 Зафиксировать улику</button>
         </div>
-        <div class="metadata-panel">
-            <div class="meta-row"><span class="meta-label">Камера:</span><span class="meta-value">iPhone 13</span></div>
-            <div class="meta-row"><span class="meta-label">Дата:</span><span class="meta-value">14 окт, 16:42</span></div>
-            <div class="meta-row"><span class="meta-label">GPS:</span><span class="meta-value alert" id="gpsCoords">55.7558° N, 37.6173° E</span></div>
-            <div class="meta-row"><span class="meta-label">Локация:</span><span class="meta-value" id="locationName">📍 Кафе "Зерно", ул. Ленина, 5</span></div>
-        </div>
-        <button class="btn btn-primary" id="sendReportBtn" onclick="sendReport()">📤 Отправить отчет боту</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand(); tg.ready();
 
-        const files = [
-            { id: 'photo_001', name: 'photo_001.jpg', size: '2.4 MB', type: 'image', isNew: true },
-            { id: 'doc_002', name: 'fin_report_oct.pdf', size: '1.1 MB', type: 'doc', isNew: false },
-            { id: 'chat_003', name: 'tg_backup_Dmitry.txt', size: '45 KB', type: 'text', isNew: true }
-        ];
-
-        const fileListEl = document.getElementById('fileList');
-        files.forEach(file => {
-            const div = document.createElement('div');
-            div.className = 'file-item';
-            div.innerHTML = `<span class="file-icon">${file.type === 'image' ? '🖼️' : file.type === 'doc' ? '📄' : '💬'}</span>
-                <div class="file-info"><div class="file-name">${file.name}</div><div class="file-meta">${file.size}</div></div>
-                ${file.isNew ? '<span class="badge new">NEW</span>' : '<span class="badge">OPENED</span>'}`;
-            div.onclick = () => openFile(file.id);
-            fileListEl.appendChild(div);
-        });
+        // --- ДАННЫЕ ИГРЫ (Синтетические) ---
+        const gameData = {
+            files: [
+                {
+                    id: 'photo_001',
+                    type: 'image',
+                    title: 'photo_001.jpg',
+                    desc: 'Найдено в облаке. Визуально похоже на горы.',
+                    tag: 'NEW',
+                    tagClass: 'tag-new',
+                    url: 'https://placehold.co/600x400/1a1a1a/FFF?text=EVIDENCE:+Mountain+View',
+                    meta: {
+                        'Device': 'iPhone 13 Pro',
+                        'Date': '14 Oct 2026, 16:42:11',
+                        'GPS Coords': '43.2345, 76.9123', // Координаты КАФЕ
+                        'Location Name': 'ул. Абая, Центр (Кафе)',
+                        'ISO': '100',
+                        'Aperture': 'f/1.5'
+                    }
+                },
+                {
+                    id: 'chat_backup',
+                    type: 'text',
+                    title: 'backup_tg_dmitry.txt',
+                    desc: 'Резервная копия переписки.',
+                    tag: 'TEXT',
+                    tagClass: 'tag-new',
+                    content: `
+                        <div style="background:#222; padding:15px; border-radius:8px; font-family:monospace; font-size:13px; line-height:1.5;">
+                            <p><span style="color:#555">[14:00] Dmitry:</span> Ты уверен, что это безопасно?</p>
+                            <p><span style="color:#555">[14:02] Alexey:</span> Да, там никого не будет.</p>
+                            <p><span style="color:#555">[14:05] Dmitry:</span> Жду на месте.</p>
+                            <p style="color:var(--danger)">[Сообщение удалено]</p>
+                        </div>
+                    `
+                },
+                {
+                    id: 'bank_doc',
+                    type: 'doc',
+                    title: 'statement_oct.pdf',
+                    desc: 'Выписка со счёта за октябрь.',
+                    tag: 'PDF',
+                    tagClass: 'tag-danger',
+                    content: `
+                        <div style="background:#fff; color:#000; padding:15px; border-radius:8px;">
+                            <h3>БАНКОВСКАЯ ВЫПИСКА</h3>
+                            <p>Клиент: Алексей К.</p>
+                            <hr>
+                            <p>12.10 Оплата: Кафе "Зерно" <b>-450 ₸</b></p>
+                            <p>14.10 Снятие: Банкомат #992 <b>-50 000 ₸</b></p>
+                        </div>
+                    `
+                }
+            ],
+            mapPoints: [
+                { lat: 43.2522, lng: 76.8671, name: 'Кафе "Зерно"', color: '#3b82f6' }, // Центр Алматы
+                { lat: 43.1900, lng: 77.0000, name: 'Скалы (Место гибели)', color: '#ef4444' }, // Горы
+                { lat: 43.2400, lng: 76.9500, name: 'Офис SoftDev', color: '#f59e0b' } // Центр
+            ]
+        };
 
         let currentFile = null;
-        function openFile(fileId) {
-            currentFile = fileId;
-            if (fileId === 'photo_001') {
-                document.getElementById('photoModal').classList.add('active');
-                tg.HapticFeedback.selectionChanged();
-            } else {
-                tg.showAlert('🔒 Доступ ограничен. Требуется уровень допуска 2.');
+        let mapInitialized = false;
+
+        // --- Рендер списка файлов ---
+        function renderFiles() {
+            const container = document.getElementById('tab-files');
+            container.innerHTML = '';
+            gameData.files.forEach(file => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.onclick = () => openFile(file);
+                div.innerHTML = `
+                    <div class="file-icon">${file.type === 'image' ? '🖼️' : file.type === 'text' ? '💬' : '📄'}</div>
+                    <div class="file-info">
+                        <h3>${file.title}</h3>
+                        <p>${file.desc}</p>
+                        <span class="tag ${file.tagClass}">${file.tag}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // --- Переключение вкладок ---
+        function switchTab(tabName) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+
+            document.querySelector(`.nav-btn[onclick*="${tabName}"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            if (tabName === 'map' && !mapInitialized) {
+                initMap();
             }
         }
-        function closeModal() { document.getElementById('photoModal').classList.remove('active'); }
 
-        function sendReport() {
-            const btn = document.getElementById('sendReportBtn');
-            btn.disabled = true; btn.textContent = '⏳ Отправка...';
-            setTimeout(() => {
-                const report = JSON.stringify({
-                    action: 'metadata_found',
-                    file: 'photo_001.jpg',
-                    gps: '55.7558, 37.6173',
-                    location: 'Кафе "Зерно", ул. Ленина, 5',
-                    timestamp: '14 окт, 16:42'
-                });
-                tg.sendData(report);
-                btn.textContent = '✅ Отправлено';
-            }, 600);
+        // --- Карта ---
+        function initMap() {
+            // Координаты центра Алматы
+            const center = [43.2389, 76.9490];
+            const map = L.map('map').setView(center, 11);
+
+            // Тёмная тема карты (идеально для детектива)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO'
+            }).addTo(map);
+
+            gameData.mapPoints.forEach(pt => {
+                L.circleMarker([pt.lat, pt.lng], {
+                    radius: 8,
+                    fillColor: pt.color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map).bindPopup(`<b>${pt.name}</b>`);
+            });
+
+            // Линия маршрута
+            L.polyline([
+                [43.2522, 76.8671], // Кафе
+                [43.1900, 77.0000]  // Горы
+            ], { color: '#ef4444', weight: 3, dashArray: '5, 10' }).addTo(map);
+
+            mapInitialized = true;
         }
 
-        tg.BackButton.onClick(() => { closeModal(); tg.BackButton.hide(); });
-        document.getElementById('photoModal').addEventListener('click', (e) => { if(e.target.id === 'photoModal') closeModal(); });
+        // --- Открытие файла ---
+        function openFile(file) {
+            currentFile = file;
+            document.getElementById('modal-title').innerText = file.title;
+
+            const contentDiv = document.getElementById('modal-content');
+            // Рендерим контент в зависимости от типа
+            if (file.type === 'image') {
+                contentDiv.innerHTML = `<img src="${file.url}" class="fake-asset">`;
+            } else {
+                contentDiv.innerHTML = file.content;
+            }
+
+            // Заполняем метаданные
+            const metaTable = document.getElementById('modal-meta');
+            metaTable.innerHTML = '';
+            if (file.meta) {
+                Object.entries(file.meta).forEach(([key, value]) => {
+                    const isSuspicious = key.includes('GPS') || key.includes('Location');
+                    metaTable.innerHTML += `
+                        <tr>
+                            <td>${key}</td>
+                            <td class="${isSuspicious ? 'highlight' : ''}">${value}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                metaTable.innerHTML = '<tr><td colspan="2" style="color:#555">Нет метаданных</td></tr>';
+            }
+
+            document.getElementById('file-modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('file-modal').classList.remove('open');
+        }
+
+        // --- Отправка данных боту ---
+        function sendFileReport() {
+            if (!currentFile) return;
+
+            const report = {
+                action: 'file_analyzed',
+                fileId: currentFile.id,
+                type: currentFile.type,
+                summary: `Игрок изучил ${currentFile.title}`
+            };
+
+            // Если это фото с подозрительными координатами
+            if (currentFile.meta && currentFile.meta['GPS Coords']) {
+                report.gps = currentFile.meta['GPS Coords'];
+                report.location = currentFile.meta['Location Name'];
+            }
+
+            tg.sendData(JSON.stringify(report));
+            tg.close();
+        }
+
+        function sendMapReport() {
+            tg.sendData(JSON.stringify({
+                action: 'map_analyzed',
+                summary: 'Игрок изучил карту и маршрут'
+            }));
+            tg.close();
+        }
+
+        // Запуск
+        renderFiles();
+
     </script>
 </body>
 </html>
